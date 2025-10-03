@@ -17,8 +17,10 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 from trips.views import plan_trip
+from trips.views import makeStops
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/plan-trip/', plan_trip, name='plan_trip'),
+    path('api/makeStops/', makeStops, name='makeStops'),
 ]
