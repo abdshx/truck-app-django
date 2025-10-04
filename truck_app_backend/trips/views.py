@@ -4,7 +4,8 @@ import requests
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from django.conf import settings
-from .models import Trip
+from django.utils import timezone
+from .models import Trip, Activity
 
 from math import radians, sin, cos, sqrt, atan2
 from rest_framework.response import Response
@@ -134,7 +135,7 @@ def plan_trip(request):
         duration = summary["duration"] / 3600     # seconds → hours
 
         # --- Apply scheduling rules ---
-        logs, stops = make_schedule(distance, duration, used_hours)
+        //logs, stops = make_schedule(distance, duration, used_hours)
 
         
         
@@ -160,5 +161,93 @@ def plan_trip(request):
             "logs": logs        # Daily logs for ELD
         })
 
+    except Exception as e:
+        return Response({"error": str(e)}, status=400)
+
+@api_view(["POST"])
+def getDrivingHours(request):
+    """
+    Check the total duration of all driving activities.
+    If it exceeds 70 hours, send an 'endtrip' message to the frontend.
+    """
+    try:
+        trip_id = request.data.get("trip_id")
+        
+        # Get all driving activities for this trip
+        driving_activities = Activity.objects.filter(
+            trip_id=trip_id,
+            name='driving'
+        )
+        
+        # Calculate total driving hours
+        total_driving_seconds = sum(activity.duration for activity in driving_activities)
+        total_driving_hours = total_driving_seconds / 3600  # Convert seconds to hours
+        
+        # Check if driving hours exceed 70
+        if total_driving_hours > 70:
+            return Response({
+                "status": "endtrip",
+                "message": "You have exceeded the 70-hour driving limit. Trip must end.",
+                "total_hours": total_driving_hours
+            })
+        
+        return Response({
+            "status": "ok",
+            "total_hours": total_driving_hours
+        })
+        
+    except Exception as e:
+        return Response({"error": str(e)}, status=400)
+
+@api_view(["POST"])
+def addActivity(request):
+    """
+    Add a new activity to the database.
+    Check if the day has changed based on cumulative activity duration.
+    """
+    try:
+        trip_id = request.data.get("trip_id")
+        name = request.data.get("name")
+        duration = request.data.get("duration")  # Duration in seconds
+        start_time = request.data.get("start_time")
+        end_time = request.data.get("end_time")
+        
+        # Get the trip
+        trip = Trip.objects.get(id=trip_id)
+        
+        # Get all activities for this trip
+        activities = Activity.objects.filter(trip_id=trip_id).order_by('day_number', 'start_time')
+        
+        # Determine day number
+        if activities.exists():
+            # Calculate total activity time in seconds
+            total_activity_time = sum(activity.duration for activity in activities)
+            
+            # A day is 24 hours (86400 seconds)
+            day_number = (total_activity_time // 86400) + 1
+            
+            # Get the last activity's day number as a fallback
+            last_activity_day = activities.last().day_number
+            day_number = max(day_number, last_activity_day)
+        else:
+            # First activity for this trip
+            day_number = 1
+        
+        # Create the new activity
+        activity = Activity.objects.create(
+            trip=trip,
+            name=name,
+            day_number=day_number,
+            duration=duration,
+            start_time=start_time,
+            end_time=end_time
+        )
+        
+        return Response({
+            "status": "success",
+            "activity_id": activity.id,
+            "day_number": day_number
+        })
+        
     except Exception as e:
         return Response({"error": str(e)}, status=400)

@@ -16,11 +16,12 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from trips.views import plan_trip
-from trips.views import makeStops
+from trips.views import plan_trip, makeStops, getDrivingHours, addActivity
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/plan-trip/', plan_trip, name='plan_trip'),
     path('api/makeStops/', makeStops, name='makeStops'),
+    path('api/GetDrivingHours/', getDrivingHours, name='getDrivingHours'),
+    path('api/addActivity/', addActivity, name='addActivity'),
 ]
